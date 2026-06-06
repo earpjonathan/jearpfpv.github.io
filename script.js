@@ -1,296 +1,100 @@
-// =================================================================
-// 1. GLOBAL STATE & MEDIA PRE-LOAD LOGIC
-// =================================================================
+/* ============================================================
+   Shared interactions — theme toggle, scroll reveal, year.
+   Hub-only: floating cursor preview on the work index.
+   ============================================================ */
 
-// Global variable to store preloaded assets
-const mediaCache = {};
-const mediaPreview = document.getElementById('media-preview');
-const mediaLinks = document.querySelectorAll('.nav-link');
+/* ---- theme toggle (persisted) ---- */
+(function () {
+  var btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    var d = document.documentElement;
+    var next = d.dataset.theme === "dark" ? "light" : "dark";
+    d.dataset.theme = next;
+    try { localStorage.setItem("theme", next); } catch (e) {}
+  });
+})();
 
-// Mobile Detection: Used to adjust particle count and disable mouse interaction
-const isMobile = window.innerWidth < 768; 
+/* ---- reveal on scroll ---- */
+(function () {
+  var els = document.querySelectorAll("[data-reveal]");
+  if (!els.length || !("IntersectionObserver" in window)) {
+    els.forEach(function (el) { el.classList.add("is-in"); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("is-in");
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+  els.forEach(function (el) { io.observe(el); });
+})();
 
-// --- HAPTIC FEEDBACK FUNCTION ---
-function triggerHapticFeedback() {
-    // Vibrate for 50 milliseconds on supported devices
-    if (navigator.vibrate) {
-        navigator.vibrate(50);
+/* ---- footer year ---- */
+(function () {
+  var y = document.getElementById("year");
+  if (y) y.textContent = new Date().getFullYear();
+})();
+
+/* ---- nav label letter-by-letter stagger ---- */
+(function () {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var links = document.querySelectorAll(".topnav__link");
+  links.forEach(function (link, li) {
+    var text = link.textContent;
+    link.textContent = "";
+    link.classList.add("stagger");
+    for (var i = 0; i < text.length; i++) {
+      var s = document.createElement("span");
+      if (text[i] === " ") { s.className = "sp"; s.innerHTML = "&nbsp;"; }
+      else s.textContent = text[i];
+      s.style.setProperty("--ci", li * 3 + i);
+      link.appendChild(s);
     }
-}
+  });
+})();
 
-// --- MEDIA PRE-LOAD FUNCTION ---
-function preloadMedia(link) {
-    const src = link.dataset.src;
-    const type = link.dataset.type;
-    
-    if (mediaCache[src]) {
-        return; // Already preloaded or loading
-    }
+/* ---- scrolled nav state ---- */
+(function () {
+  function onScroll() {
+    document.body.classList.toggle("scrolled", window.scrollY > 40);
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+})();
 
-    // Create and display spinner
-    const spinner = document.createElement('div');
-    spinner.classList.add('spinning');
-    mediaPreview.innerHTML = ''; // Remove any previous content
-    mediaPreview.appendChild(spinner); // Show spinner while loading
+/* ---- fullscreen hover preview for the cover menu ---- */
+(function () {
+  var peek = document.getElementById("peek");
+  var media = document.getElementById("peek-media");
+  if (!peek || !media) return;
+  if (matchMedia("(hover: none)").matches) return;
 
-    if (type === 'video') {
-        mediaCache[src] = { element: null, status: 'loading' };
-
-        // 1. Create and start loading the video element
-        const video = document.createElement('video');
-        video.src = src;
-        video.muted = true;
-        video.loop = true;
-        video.playsInline = true;
-        video.preload = 'auto';
-
-        // 2. Add loading listeners
-        video.addEventListener('canplaythrough', () => {
-            mediaCache[src].status = 'loaded';
-            mediaCache[src].element = video; 
-            mediaPreview.innerHTML = ''; // Remove spinner
-            mediaPreview.appendChild(video);
-            mediaPreview.classList.add('active');
-            video.play().catch(e => console.log('Video play failed:', e));
-        });
-
-        // Increase spinning speed as data is buffered
-        video.addEventListener('progress', () => {
-            if (video.buffered.length > 0) {
-                const buffered = video.buffered.end(0);
-                if (buffered > 0) {
-                    spinner.classList.add('spinning-fast'); // Speed up spinning
-                }
-            }
-        });
-
-        // 3. Add error listener
-        video.addEventListener('error', () => {
-            mediaCache[src].status = 'error';
-            console.error(`Error loading video: ${src}`);
-        });
-
-        video.load();
-
-    } else if (type === 'image') {
-        const img = new Image();
+  document.querySelectorAll("[data-peek]").forEach(function (item) {
+    item.addEventListener("mouseenter", function () {
+      var type = item.getAttribute("data-peek");
+      var src = item.getAttribute("data-peek-src");
+      media.innerHTML = "";
+      if (type === "video") {
+        var v = document.createElement("video");
+        v.src = src; v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true;
+        v.play().catch(function () {});
+        media.appendChild(v);
+      } else {
+        var img = new Image();
         img.src = src;
-
-        img.onload = () => {
-            mediaCache[src] = { element: img, status: 'loaded' };
-            mediaPreview.innerHTML = ''; // Remove spinner
-            mediaPreview.appendChild(img);
-            mediaPreview.classList.add('active');
-        };
-
-        img.onerror = () => {
-            mediaCache[src] = { element: img, status: 'error' };
-            console.error(`Error loading image: ${src}`);
-        };
-    }
-}
-
-// --- SHOW/HIDE & INTERACTION LOGIC ---
-mediaLinks.forEach(link => {
-    // Start preloading videos immediately after the DOM loads
-    if (link.dataset.type === 'video') {
-        preloadMedia(link);
-    }
-    
-    // Desktop hover event
-    link.addEventListener('mouseenter', () => {
-        const src = link.dataset.src;
-        const type = link.dataset.type;
-        const placeholder = link.dataset.placeholder;
-
-        if (type === 'video') {
-            const cachedMedia = mediaCache[src];
-            
-            if (cachedMedia && cachedMedia.status === 'loaded') {
-                mediaPreview.innerHTML = '';
-                mediaPreview.appendChild(cachedMedia.element);
-                mediaPreview.classList.add('active');
-                cachedMedia.element.play().catch(e => console.log('Video play failed:', e));
-
-            } else {
-                // Show placeholder image while video is loading
-                mediaPreview.innerHTML = `<img src="${placeholder}" alt="Loading Preview" style="width: 100%; height: 100%; object-fit: cover;">`;
-                mediaPreview.classList.add('active');
-            }
-
-        } else if (type === 'image') {
-            const img = mediaCache[src] ? mediaCache[src].element : new Image();
-            if (!mediaCache[src]) {
-                 img.src = src;
-                 mediaCache[src] = { element: img, status: 'loaded' };
-            }
-            mediaPreview.innerHTML = '';
-            mediaPreview.appendChild(img);
-            mediaPreview.classList.add('active');
-        }
+        media.appendChild(img);
+      }
+      peek.classList.add("is-on");
+      document.body.classList.add("peek-on");
     });
-
-    // Desktop exit hover event
-    link.addEventListener('mouseleave', () => {
-        mediaPreview.classList.remove('active');
-        const cachedMedia = mediaCache[link.dataset.src];
-        if (cachedMedia && cachedMedia.status === 'loaded' && cachedMedia.element.tagName === 'VIDEO') {
-            cachedMedia.element.pause();
-        }
+    item.addEventListener("mouseleave", function () {
+      peek.classList.remove("is-on");
+      document.body.classList.remove("peek-on");
+      media.innerHTML = "";
     });
-    
-    // Mobile/Tap Haptic Feedback
-    link.addEventListener('click', () => {
-        triggerHapticFeedback();
-    });
-});
-
-// =================================================================
-// 2. THREE.JS 3D BACKGROUND
-// =================================================================
-
-const canvas = document.querySelector('#canvas3d');
-const scene = new THREE.Scene();
-
-// Camera Setup
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.z = 5;
-
-// Renderer Setup
-const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambientLight);
-
-const pointLight = new THREE.PointLight(0xffffff, 1);
-pointLight.position.set(5, 5, 5);
-scene.add(pointLight);
-
-// Objects (Spheres)
-const particlesGeometry = new THREE.IcosahedronGeometry(0.5, 0);
-const particlesMaterial = new THREE.MeshStandardMaterial({
-    color: 0x333333,
-    wireframe: true,
-});
-
-// Reduce particle count on mobile for performance (30 desktop, 15 mobile)
-const particlesCount = isMobile ? 15 : 30; 
-const particles = [];
-
-for (let i = 0; i < particlesCount; i++) {
-    const mesh = new THREE.Mesh(particlesGeometry, particlesMaterial);
-    
-    // Random position
-    mesh.position.x = (Math.random() - 0.5) * 15;
-    mesh.position.y = (Math.random() - 0.5) * 10;
-    mesh.position.z = (Math.random() - 0.5) * 5;
-
-    // Custom velocity for floating animation
-    mesh.userData = {
-        velX: (Math.random() - 0.5) * 0.01,
-        velY: (Math.random() - 0.5) * 0.01,
-        initialX: mesh.position.x,
-        initialY: mesh.position.y
-    };
-
-    scene.add(mesh);
-    particles.push(mesh);
-}
-
-
-// =================================================================
-// 3. INTERACTION & ANIMATION
-// =================================================================
-
-// Mouse Interaction (Desktop)
-let mouseX = 0;
-let mouseY = 0;
-const windowHalfX = window.innerWidth / 2;
-const windowHalfY = window.innerHeight / 2;
-
-// Desktop Mouse Tracking
-if (!isMobile) {
-    document.addEventListener('mousemove', (event) => {
-        mouseX = (event.clientX - windowHalfX);
-        mouseY = (event.clientY - windowHalfY);
-    });
-}
-
-
-// Device Orientation (Mobile/Tilt)
-const orientation = { x: 0, y: 0 };
-const tiltStrength = 0.02; // Strength of the camera tilt effect
-
-function handleOrientation(event) {
-    // Gamma: Left/Right tilt, Beta: Front/Back tilt
-    const gamma = event.gamma;
-    const beta = event.beta;
-
-    // Normalize and dampen the values for smooth camera movement
-    orientation.x = (gamma / 90) * tiltStrength;
-    orientation.y = (beta / 90) * tiltStrength;
-}
-
-if (isMobile && window.DeviceOrientationEvent) {
-    window.addEventListener('deviceorientation', handleOrientation, true);
-}
-
-// Animation Loop
-const clock = new THREE.Clock();
-
-const tick = () => {
-    particles.forEach(mesh => {
-        // 1. Basic floating animation
-        mesh.rotation.x += 0.002;
-        mesh.rotation.y += 0.002;
-        
-        mesh.position.x += mesh.userData.velX;
-        mesh.position.y += mesh.userData.velY;
-
-        // 2. Mouse Repulsion / Attraction (Desktop Only)
-        if (!isMobile) {
-            const dx = (mouseX / window.innerWidth) * 15 - mesh.position.x;
-            const dy = -(mouseY / window.innerHeight) * 10 - mesh.position.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist < 3) {
-                const force = (3 - dist) * 0.05;
-                mesh.position.x -= dx * force;
-                mesh.position.y -= dy * force;
-            } 
-        }
-        
-        // 3. Return to center logic (gentle pull back so they don't fly away)
-        mesh.position.x += (mesh.userData.initialX - mesh.position.x) * 0.01;
-        mesh.position.y += (mesh.userData.initialY - mesh.position.y) * 0.01;
-    });
-
-    // Camera Movement
-    if (isMobile && window.DeviceOrientationEvent) {
-        // Mobile: Tilt-based camera movement
-        camera.position.x += (orientation.x - camera.position.x) * 0.1;
-        camera.position.y += (orientation.y - camera.position.y) * 0.1;
-        
-    } else {
-        // Desktop: Mouse-based camera movement
-        camera.position.x += (mouseX * 0.005 - camera.position.x) * 0.05;
-        camera.position.y += (-mouseY * 0.005 - camera.position.y) * 0.05;
-    }
-    
-    camera.lookAt(scene.position);
-
-    renderer.render(scene, camera);
-    window.requestAnimationFrame(tick);
-};
-
-tick();
-
-// Handle Resize
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  });
+})();

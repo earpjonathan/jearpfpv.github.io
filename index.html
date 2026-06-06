@@ -1,115 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jonathan Earp — Engineer, Builder, Researcher</title>
+    <meta name="description" content="Portfolio of Jonathan Earp — FPV drone cinematography, AI air-quality research (StoveCam) at Lawrence Berkeley National Lab, and engineering.">
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
 
-    <title>Jonathan Earp | FPV, Robotics, and Engineering Portfolio Hub</title>
-    
-    <meta name="description" content="Official hub for Jonathan Earp. Explore projects in FPV drone technology, advanced robotics, and research engineering.">
-    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="style.css">
-    
+
+    <script>
+      (function () {
+        var d = document.documentElement;
+        d.classList.add("js");
+        try {
+          d.dataset.theme = localStorage.getItem("theme") || "dark";
+        } catch (e) { d.dataset.theme = "dark"; }
+      })();
+    </script>
+
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-LX29XZ8P8R"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-    
       gtag('config', 'G-LX29XZ8P8R');
     </script>
 </head>
-<body>
-    
-    <canvas id="canvas3d"></canvas>
+<body class="is-cover">
 
-    <div id="media-preview" class="media-preview"></div>
+    <!-- topographic background -->
+    <canvas id="topo" data-topo data-interactive="true" aria-hidden="true"></canvas>
+    <!-- fullscreen hover preview -->
+    <div class="peek" id="peek" aria-hidden="true"><div class="peek__media" id="peek-media"></div></div>
+    <!-- vertical edge label -->
+    <div class="vlabel" aria-hidden="true">Portfolio — MMXXVI</div>
 
-    <main class="hub-container">
-        <header class="hub-header">
-            <h1 class="logo">Jonathan Earp</h1>
-        </header>
+    <header class="topbar">
+        <div class="topbar__inner">
+            <a href="https://jonathanearp.xyz" class="brand">Jonathan Earp</a>
+            <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme">
+                <span class="theme-toggle__dot"></span><span class="theme-toggle__label"></span>
+            </button>
+        </div>
+    </header>
 
-        <nav class="hub-nav">
-            <ul class="nav-list">
-                <li class="nav-item">
-                    <a href="https://fpv.jonathanearp.xyz" 
-                        class="nav-link" 
-                        data-type="video" 
-                        data-src="assets/reel.mp4" 
-                        data-placeholder="assets/fpv-clip-04-poster.png">
-                        <span class="index">01</span>
-                        <span class="text">FPV</span>
-                    </a>
-                </li>
-
-                <li class="nav-item">
-                    <a href="https://research.jonathanearp.xyz" class="nav-link" data-type="image" data-src="assets/research-preview.jpg">
-                        <span class="index">02</span>
-                        <span class="text">RESEARCH</span>
-                    </a>
-                </li>
-
-                <li class="nav-item">
-                    <a href="https://robotics.jonathanearp.xyz" class="nav-link" data-type="image" data-src="assets/robotics-preview.png">
-                        <span class="index">03</span>
-                        <span class="text">ROBOTICS</span>
-                        <span class="coming-soon">(Coming Soon)</span>
-                    </a>
-                </li>
-
-                <li class="nav-item">
-                    <a href="https://resume.jonathanearp.xyz" class="nav-link">
-                        <span class="index">04</span>
-                        <span class="text">Resume</span>
-                    </a>
-                </li>
-            </ul>
-
-            <div class="social-dock">
-                <a href="https://www.instagram.com/jonathanearp.1/" target="_blank" class="social-icon" aria-label="Instagram">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                    </svg>
-                </a>
-
-                <a href="https://www.linkedin.com/in/jonathan-earp-25905026b/" target="_blank" class="social-icon" aria-label="LinkedIn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
-                        <rect x="2" y="9" width="4" height="12"></rect>
-                        <circle cx="4" cy="4" r="2"></circle>
-                    </svg>
-                </a>
-
-                <a href="https://x.com/JonathanEarp_" target="_blank" class="social-icon" aria-label="X (Twitter)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </a>
-
-                <a href="mailto:jonathan.earp55@email.com" class="social-icon" aria-label="Email">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                        <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
-                </a>
-            </div>
+    <main class="cover">
+        <nav class="menu" aria-label="Sections">
+            <a class="menu__item" href="https://fpv.jonathanearp.xyz"
+               data-peek="video" data-peek-src="assets/reel.mp4">
+                <span class="menu__no">01</span>
+                <span class="menu__txt">FPV</span>
+            </a>
+            <a class="menu__item" href="https://research.jonathanearp.xyz"
+               data-peek="image" data-peek-src="assets/research-preview.jpg">
+                <span class="menu__no">02</span>
+                <span class="menu__txt">Research</span>
+            </a>
+            <a class="menu__item" href="https://resume.jonathanearp.xyz">
+                <span class="menu__no">03</span>
+                <span class="menu__txt">Résumé</span>
+            </a>
         </nav>
-
-        <footer class="hub-footer">
-            <p>&copy; 2025 Jonathan Earp</p>
-        </footer>
     </main>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <footer class="cover-foot">
+        <div class="dock">
+            <a href="https://www.instagram.com/jonathanearp.1/" target="_blank" rel="noopener" class="dock__icon" aria-label="Instagram">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                </svg>
+            </a>
+            <a href="https://www.linkedin.com/in/jonathan-earp-25905026b/" target="_blank" rel="noopener" class="dock__icon" aria-label="LinkedIn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
+                    <rect x="2" y="9" width="4" height="12"></rect>
+                    <circle cx="4" cy="4" r="2"></circle>
+                </svg>
+            </a>
+            <a href="https://x.com/JonathanEarp_" target="_blank" rel="noopener" class="dock__icon" aria-label="X (Twitter)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </a>
+            <a href="mailto:jonathan.earp55@gmail.com" class="dock__icon" aria-label="Email">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+            </a>
+        </div>
+        <p class="cover-foot__copy">© <span id="year">2026</span> Jonathan Earp</p>
+    </footer>
+
+    <script src="topo.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
