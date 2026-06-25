@@ -584,6 +584,49 @@ body.is-cover { overflow: hidden; height: 100vh; }
 }
 .peek.is-on { opacity: 0.42; }
 
+/* ---- minigame overlay (double-click the hills) ---- */
+.game-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1;          /* above the contours, below the menu — never eats clicks */
+  pointer-events: none;
+}
+.game-hud, .game-hint {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--header-h) + 16px);
+  transform: translateX(-50%);
+  z-index: 50;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: var(--t-caption);
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease);
+}
+.game-hud { color: var(--fg); }
+.game-hud.is-on { opacity: 0.92; }
+.game-hud span {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+.game-hint { color: var(--fg-soft); }
+.game-hint.is-on { opacity: 0.6; }
+body.game-on .game-hint { opacity: 0 !important; }
+
+/* during a run the skier/hiker IS the cursor — hide the native arrow */
+body.game-on, body.game-on * { cursor: none !important; }
+
+/* the character "aims" at a target — mirror the hover affordance so it's
+   clear that clicking now opens that section / control */
+.menu__item.is-aim { transform: translateX(clamp(8px, 1.5vw, 20px)); }
+.menu__item.is-aim .menu__txt { color: var(--fg); -webkit-text-stroke-width: 0; }
+.menu__item.is-aim .menu__no { color: var(--accent); }
+.dock__icon.is-aim { color: var(--accent); }
+.theme-toggle.is-aim { border-color: var(--accent); }
+
 .cover {
   position: relative;
   z-index: 2;

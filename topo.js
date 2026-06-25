@@ -22,7 +22,7 @@
   var cell = 30;
   var W = 0, H = 0, cols = 0, rows = 0, field = null;
   var fg = "#0a0a0a", accent = "#1e3fe5";
-  var t = 0, visible = true, raf = null;
+  var t = 0, visible = true, raf = null, frozen = false;
 
   var m = { x: -9999, y: -9999, tx: -9999, ty: -9999, on: false, amp: 0,
             panx: 0, pany: 0, ptx: 0, pty: 0 };
@@ -61,10 +61,13 @@
     var top = tl + (tr - tl) * u, bot = bl + (br - bl) * u;
     return top + (bot - top) * v;
   }
+  /* Two octaves of value noise. Tuned a touch smoother/rollier than a
+     plain fractal so the contours read as broad hills — nicer as a
+     backdrop and far more skiable for the hub minigame. */
   function baseAt(px, py) {
     var x = px + m.panx, y = py + m.pany;
-    return vnoise(x * 0.0023 + t, y * 0.0023 - t * 0.6) * 0.65 +
-           vnoise(x * 0.0052 - t * 0.5, y * 0.0052 + t * 0.3) * 0.35;
+    return vnoise(x * 0.0021 + t, y * 0.0021 - t * 0.6) * 0.72 +
+           vnoise(x * 0.0046 - t * 0.5, y * 0.0046 + t * 0.3) * 0.28;
   }
 
   function computeField() {
@@ -203,6 +206,7 @@
     /* listen on the whole window so the terrain pans as the cursor
        roams anywhere on screen, not just over the canvas */
     window.addEventListener("mousemove", function (e) {
+      if (frozen) return; /* game owns the cursor — don't pan the terrain */
       var r = canvas.getBoundingClientRect();
       m.tx = e.clientX - r.left;
       m.ty = e.clientY - r.top;
@@ -244,7 +248,26 @@
       resize();
       if (mx != null) { m.on = true; m.amp = 0.6; m.x = m.tx = mx; m.y = m.ty = my; }
       render1();
-    }
+    },
+    /* elevation of the (frozen) terrain at a screen pixel — used by the minigame */
+    field: function (x, y) { return baseAt(x, y); },
+    /* shift the procedural terrain to a chosen snapshot — the game searches a few
+       offsets for one with good elevation spread + slopes before it freezes */
+    setOffset: function (px, py) { m.panx = m.ptx = px; m.pany = m.pty = py; },
+    /* hold the terrain still (game mode) or release it back to cursor-panning */
+    freeze: function (on) {
+      frozen = !!on;
+      if (on) {
+        if (raf) { cancelAnimationFrame(raf); raf = null; }
+        m.amp = 0;
+        readColors();
+        computeField();
+        draw();
+      } else {
+        kick();
+      }
+    },
+    ready: function () { return !!field; }
   };
 
   render1(); /* initial static frame; loop starts on first mouse move */
