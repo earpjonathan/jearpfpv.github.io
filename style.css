@@ -706,6 +706,16 @@ html[data-theme="light"] .menu__txt { -webkit-text-stroke-color: var(--fg); }
   text-transform: uppercase;
   color: var(--fg-soft);
 }
+/* easter-egg nudge — fades out once a run starts */
+.cover-foot__hint {
+  font-size: var(--t-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-soft);
+  opacity: 0.62;
+  transition: opacity var(--t-base);
+}
+body.game-on .cover-foot__hint { opacity: 0; }
 
 @media (max-width: 560px) {
   .cover { justify-content: flex-start; }

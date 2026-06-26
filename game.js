@@ -45,7 +45,7 @@
   var SCORE_RATE = 0.5;     // points per unit of downhill speed
   var SLIDE_THRESH = 2.2;   // downhill speed that flips walk -> slide animation
   var TOP_MARGIN = 14;      // keep the character on-screen below the very top
-  var N_TREES = 18;
+  var N_TREES = 28;
   var POP_DUR = 440;        // tree pop-in duration (ms)
   var WIPE_TIME = 38;       // wipeout duration (frames)
   var N_LIFTS = 2;          // ski lifts per run
@@ -246,6 +246,21 @@
     }
     return best || { x: (x0 + x1) / 2, y: y0 + 24 };
   }
+  /* a high, sloped start whose downhill heads DOWN the screen — so the slalom
+     that follows the fall line from it always runs downhill */
+  function pickSlalomStart(x0, x1, y0, y1) {
+    if (x1 - x0 < 90) return null;
+    var best = null;
+    for (var y = y0; y < y1; y += 22) for (var x = x0; x < x1; x += 22) {
+      var g = grad(x, y), gm = Math.hypot(g[0], g[1]);
+      if (gm < 0.035 || gm > 0.13) continue;
+      var downY = -g[1] / gm;                          // >0 means downhill is downward on screen
+      if (downY < 0.3) continue;
+      var sc = field(x, y) * 0.5 + downY * 0.6 + gm;   // prefer high, downward, sloped
+      if (!best || sc > best.sc) best = { x: x, y: y, sc: sc };
+    }
+    return best;
+  }
   function bbox(pts, pad) {
     var x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     for (var i = 0; i < pts.length; i++) { x0 = Math.min(x0, pts[i].x); y0 = Math.min(y0, pts[i].y); x1 = Math.max(x1, pts[i].x); y1 = Math.max(y1, pts[i].y); }
@@ -269,21 +284,28 @@
       }
       if (jumps.length) jumpZone = bbox(jumps, 28);
     }
-    /* SLALOM (ski) / TRAIL (hike) in the left margin: an even, mostly-vertical line of
-       gates alternating gently across it — clean to read and finishable */
-    var sla = pickAnchorBand(44, leftX1, H * 0.14, H * 0.42);
+    /* SLALOM (ski) / TRAIL (hike): trace the fall line from a downhill-facing start so the
+       course always runs downhill, clamped into the left margin so it clears the words */
+    var lo = 44, hi = leftX1;
+    var sla = pickSlalomStart(lo, hi, H * 0.12, H * 0.5) || pickAnchorBand(lo, hi, H * 0.14, H * 0.42);
     if (sla) {
-      var lo = 44, hi = leftX1, midx = (lo + hi) / 2;
-      var cx0 = Math.max(lo + 24, Math.min(hi - 24, sla.x)), cy0 = sla.y, poles = [];
-      for (var k = 0; k < SLALOM_GATES; k++) {
-        var cy = cy0 + k * GATE_STEP_Y;
-        if (cy > H - 70) break;
-        var gg = grad(midx, cy), gmg = Math.hypot(gg[0], gg[1]) || 1e-6;
-        var drift = Math.max(-22, Math.min(22, (-gg[0] / gmg) * 14));        // gentle terrain lean
-        var side = (k % 2 ? 1 : -1);
-        var cx = Math.max(lo + GATE_HW + 6, Math.min(hi - GATE_HW - 6, cx0 + drift + side * GATE_SHIFT));
-        gates.push({ cx: cx, cy: cy, nx: 0, ny: 1, px: 1, py: 0, hw: GATE_HW, passed: false, prev: 0 });
-        poles.push({ x: cx + GATE_HW, y: cy }, { x: cx - GATE_HW, y: cy });
+      var cl = [{ x: Math.max(lo + 24, Math.min(hi - 24, sla.x)), y: sla.y }];
+      for (var s = 0; s < SLALOM_GATES + 3; s++) {
+        var prev = cl[cl.length - 1], gg = grad(prev.x, prev.y), gmg = Math.hypot(gg[0], gg[1]) || 1e-6;
+        var dx = -gg[0] / gmg, dy = -gg[1] / gmg;                        // pure downhill
+        var nx = Math.max(lo + 24, Math.min(hi - 24, prev.x + dx * GATE_STEP_Y));
+        var ny = prev.y + dy * GATE_STEP_Y;
+        if (ny > H - 70 || ny < prev.y - 6) break;                       // stop at the bottom / if it turns uphill
+        cl.push({ x: nx, y: ny });
+      }
+      var poles = [];
+      for (var k = 1; k < cl.length && gates.length < SLALOM_GATES; k++) {
+        var a = cl[k - 1], b = cl[k], ddx = b.x - a.x, ddy = b.y - a.y, dl = Math.hypot(ddx, ddy) || 1e-6;
+        ddx /= dl; ddy /= dl;
+        var px2 = -ddy, py2 = ddx, side = (k % 2 ? 1 : -1);
+        var cx = Math.max(lo + GATE_HW + 6, Math.min(hi - GATE_HW - 6, b.x + px2 * side * GATE_SHIFT)), cy = b.y;
+        gates.push({ cx: cx, cy: cy, nx: ddx, ny: ddy, px: px2, py: py2, hw: GATE_HW, passed: false, prev: 0 });
+        poles.push({ x: cx + px2 * GATE_HW, y: cy + py2 * GATE_HW }, { x: cx - px2 * GATE_HW, y: cy - py2 * GATE_HW });
       }
       if (gates.length) slalomZone = bbox(poles, 22);
     }
@@ -556,11 +578,13 @@
           ga.passed = true; chr.combo++; score += 40 + chr.combo * 15; flash("MARKER x" + chr.combo);
         }
       } else {                                            // skiing: thread between the poles
-        var side = chr.y - ga.cy;                         // gate faces straight down
-        if (Math.abs(chr.y - ga.cy) < 7 && (Math.abs(chr.x - (ga.cx + ga.hw)) < 5 || Math.abs(chr.x - (ga.cx - ga.hw)) < 5)) {
+        var side = (chr.x - ga.cx) * ga.nx + (chr.y - ga.cy) * ga.ny;   // signed distance along the fall line
+        var p1x = ga.cx + ga.px * ga.hw, p1y = ga.cy + ga.py * ga.hw, p2x = ga.cx - ga.px * ga.hw, p2y = ga.cy - ga.py * ga.hw;
+        if (Math.hypot(chr.x - p1x, chr.y - p1y) < 6 || Math.hypot(chr.x - p2x, chr.y - p2y) < 6) {
           gateBump(ga);
         } else if (!ga.passed && ga.prev < 0 && side >= 0) {
-          if (Math.abs(chr.x - ga.cx) < ga.hw) { ga.passed = true; chr.combo++; score += 40 + chr.combo * 15; flash("GATE x" + chr.combo); }
+          var lat = Math.abs((chr.x - ga.cx) * ga.px + (chr.y - ga.cy) * ga.py);
+          if (lat < ga.hw) { ga.passed = true; chr.combo++; score += 40 + chr.combo * 15; flash("GATE x" + chr.combo); }
           else chr.combo = 0;
         }
         ga.prev = side;
@@ -571,9 +595,9 @@
   }
   /* clipping a gate pole is a gentle nudge + lost combo, not a full wipeout */
   function gateBump(ga) {
-    var dir = chr.x < ga.cx ? -1 : 1;
-    chr.x = ga.cx + dir * (ga.hw + 4);
-    chr.vx = dir * 1.4 + chr.vx * 0.5; chr.vy *= 0.75;
+    var latv = (chr.x - ga.cx) * ga.px + (chr.y - ga.cy) * ga.py, dir = latv < 0 ? -1 : 1;
+    chr.x = ga.cx + ga.px * dir * (ga.hw + 4); chr.y = ga.cy + ga.py * dir * (ga.hw + 4);
+    chr.vx = chr.vx * 0.5 + ga.px * dir * 1.4; chr.vy = chr.vy * 0.5 + ga.py * dir * 1.4;
     if (chr.combo > 0) flash("MISSED GATE");
     chr.combo = 0;
   }
@@ -758,10 +782,11 @@
     for (var i = 0; i < gates.length; i++) {
       var ga = gates[i];
       if (trail) { drawCairn(ga.cx, ga.cy, ga.passed); continue; }   // hiking: trail cairns
-      var p1x = ga.cx + ga.hw, p2x = ga.cx - ga.hw;                  // skiing: a pair of poles
+      var p1x = ga.cx + ga.px * ga.hw, p1y = ga.cy + ga.py * ga.hw;  // skiing: a pair of poles
+      var p2x = ga.cx - ga.px * ga.hw, p2y = ga.cy - ga.py * ga.hw;
       ctx.globalAlpha = ga.passed ? 0.8 : 0.45; ctx.strokeStyle = C.soft; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(p1x, ga.cy); ctx.lineTo(p2x, ga.cy); ctx.stroke();
-      gatePole(p1x, ga.cy, ga.passed); gatePole(p2x, ga.cy, ga.passed);
+      ctx.beginPath(); ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y); ctx.stroke();
+      gatePole(p1x, p1y, ga.passed); gatePole(p2x, p2y, ga.passed);
     }
     ctx.globalAlpha = 1;
   }
@@ -1046,10 +1071,7 @@
   document.addEventListener("mozpointerlockchange", onLockChange);
   document.addEventListener("pointerlockerror", function () { locked = false; });
 
-  function hideHint() { hint.classList.remove("is-on"); try { localStorage.setItem("topoSeen", "1"); } catch (e) {} }
-  setTimeout(function () {
-    var seen = false; try { seen = localStorage.getItem("topoSeen") === "1"; } catch (e) {}
-    if (!active && !seen) hint.classList.add("is-on");
-  }, 5500);
+  /* the "double-click to play" nudge lives in the footer copy now */
+  function hideHint() { hint.classList.remove("is-on"); }
 
 })();
