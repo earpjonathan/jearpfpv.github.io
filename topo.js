@@ -254,6 +254,9 @@
     /* shift the procedural terrain to a chosen snapshot — the game searches a few
        offsets for one with good elevation spread + slopes before it freezes */
     setOffset: function (px, py) { m.panx = m.ptx = px; m.pany = m.pty = py; },
+    /* set the offset AND redraw the contours — the minigame calls this each frame
+       it scrolls so the infinite map keeps moving under the player */
+    renderAt: function (px, py) { m.panx = m.ptx = px; m.pany = m.pty = py; computeField(); draw(); },
     /* hold the terrain still (game mode) or release it back to cursor-panning */
     freeze: function (on) {
       frozen = !!on;

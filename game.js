@@ -46,6 +46,7 @@
   var SLIDE_THRESH = 2.2;   // downhill speed that flips walk -> slide animation
   var TOP_MARGIN = 14;      // keep the character on-screen below the very top
   var N_TREES = 28;
+  var TREE_POOL = 44;       // trees kept alive across the scrolling region (denser than on-screen count)
   var POP_DUR = 440;        // tree pop-in duration (ms)
   var WIPE_TIME = 38;       // wipeout duration (frames)
   var N_LIFTS = 2;          // ski lifts per run
@@ -99,7 +100,7 @@
     FONT = (cs.getPropertyValue("--font") || FONT).trim() || FONT;
   }
   readColors();
-  new MutationObserver(function () { readColors(); if (active) buildShade(); })
+  new MutationObserver(function () { readColors(); if (active) refreshShade(); })
     .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   var TREE_TOP = "#7c8a52", TREE_DK = "#566237";
 
@@ -119,6 +120,9 @@
   var trees = [], trail = [], spray = [], lifts = [], shade = null;
   var jumps = [], gates = [], jumpZone = null, slalomZone = null, streams = [], snow = [], peaks = [];
   var letterRect = null, lodge = null, tent = null, confetti = [], slalomCleared = false;
+  /* infinite map: a deadzone camera scrolls the world under the character */
+  var cam = { x: 0, y: 0 }, base = { x: 0, y: 0 }, scrollDir = { x: 0, y: 0 };
+  var shadeCanvas = null, shadeCtx = null, shadeImg = null, shadeVals = null, shadeW = 0, shadeH = 0, shadeSc = 12;
   var score = 0, best = 0, aimEl = null;
   try { best = +localStorage.getItem("topoBest") || 0; } catch (e) {}
 
@@ -166,10 +170,11 @@
     pendingX = pendingY = smInX = smInY = 0;
     if (!active) {
       score = 0; slalomCleared = false; confetti = [];
+      cam.x = cam.y = 0; scrollDir.x = scrollDir.y = 0;
       letterRect = getMenuRect();
       findPeaks(); buildCourses(); spawnTrees(); buildLifts(); buildStreams(); buildLandmarks(); buildSnow();
     }
-    buildShade();
+    refreshShade();
     active = true;
     document.body.classList.add("game-on");
     hud.classList.add("is-on");
@@ -209,7 +214,7 @@
       var sc = (mx - mn) * (n ? ride / n : 0);
       if (sc > bestSc) { bestSc = sc; best = { px: px, py: py }; }
     }
-    if (best) window.__topo.setOffset(best.px, best.py);
+    if (best) { window.__topo.setOffset(best.px, best.py); base.x = best.px; base.y = best.py; }
   }
 
   function spawnTrees() {
@@ -267,48 +272,49 @@
     return { x: x0 - pad, y: y0 - pad, w: (x1 - x0) + pad * 2, h: (y1 - y0) + pad * 2 };
   }
 
-  /* courses live in the margins beside the menu words (never over the letters) */
+  /* one jump course + one slalom course; the makers place them anywhere — on-screen
+     at the start, off-screen ahead as the world scrolls (managed in manageWorld) */
   function buildCourses() {
     jumps = []; gates = []; jumpZone = slalomZone = null;
     var L = letterRect, gap = 32;
     var leftX1 = L ? L.x - gap : W * 0.42, rightX0 = L ? L.x + L.w + gap : W * 0.58;
-    /* JUMP park in the right margin, ramps stepping down the band */
     var rja = pickAnchorBand(rightX0, W - 44, H * 0.16, H * 0.5);
-    if (rja) {
-      var jx = rja.x, jy = rja.y;
-      for (var i = 0; i < 3 && jy < H - 64; i++) {
-        jx = Math.max(rightX0 + 10, Math.min(W - 54, jx));
-        var gj = grad(jx, jy), gmj = Math.hypot(gj[0], gj[1]) || 1e-6;
-        jumps.push({ x: jx, y: jy, dx: -gj[0] / gmj, dy: -gj[1] / gmj });
-        jx += (-gj[0] / gmj) * 60; jy += Math.max(60, (-gj[1] / gmj) * 78);
-      }
-      if (jumps.length) jumpZone = bbox(jumps, 28);
+    if (rja) makeJumpCourse(rja.x, rja.y);
+    var sla = pickSlalomStart(44, leftX1, H * 0.12, H * 0.5) || pickAnchorBand(44, leftX1, H * 0.14, H * 0.42);
+    if (sla) makeSlalomCourse(sla.x, sla.y);
+  }
+  /* 3 ramps stepping down the fall line from (ax, ay) */
+  function makeJumpCourse(ax, ay) {
+    jumps = []; jumpZone = null;
+    var jx = ax, jy = ay;
+    for (var i = 0; i < 3; i++) {
+      var gj = grad(jx, jy), gmj = Math.hypot(gj[0], gj[1]) || 1e-6;
+      jumps.push({ x: jx, y: jy, dx: -gj[0] / gmj, dy: -gj[1] / gmj });
+      jx += (-gj[0] / gmj) * 60; jy += Math.max(58, (-gj[1] / gmj) * 78);
     }
-    /* SLALOM (ski) / TRAIL (hike): trace the fall line from a downhill-facing start so the
-       course always runs downhill, clamped into the left margin so it clears the words */
-    var lo = 44, hi = leftX1;
-    var sla = pickSlalomStart(lo, hi, H * 0.12, H * 0.5) || pickAnchorBand(lo, hi, H * 0.14, H * 0.42);
-    if (sla) {
-      var cl = [{ x: Math.max(lo + 24, Math.min(hi - 24, sla.x)), y: sla.y }];
-      for (var s = 0; s < SLALOM_GATES + 3; s++) {
-        var prev = cl[cl.length - 1], gg = grad(prev.x, prev.y), gmg = Math.hypot(gg[0], gg[1]) || 1e-6;
-        var dx = -gg[0] / gmg, dy = -gg[1] / gmg;                        // pure downhill
-        var nx = Math.max(lo + 24, Math.min(hi - 24, prev.x + dx * GATE_STEP_Y));
-        var ny = prev.y + dy * GATE_STEP_Y;
-        if (ny > H - 70 || ny < prev.y - 6) break;                       // stop at the bottom / if it turns uphill
-        cl.push({ x: nx, y: ny });
-      }
-      var poles = [];
-      for (var k = 1; k < cl.length && gates.length < SLALOM_GATES; k++) {
-        var a = cl[k - 1], b = cl[k], ddx = b.x - a.x, ddy = b.y - a.y, dl = Math.hypot(ddx, ddy) || 1e-6;
-        ddx /= dl; ddy /= dl;
-        var px2 = -ddy, py2 = ddx, side = (k % 2 ? 1 : -1);
-        var cx = Math.max(lo + GATE_HW + 6, Math.min(hi - GATE_HW - 6, b.x + px2 * side * GATE_SHIFT)), cy = b.y;
-        gates.push({ cx: cx, cy: cy, nx: ddx, ny: ddy, px: px2, py: py2, hw: GATE_HW, passed: false, prev: 0 });
-        poles.push({ x: cx + px2 * GATE_HW, y: cy + py2 * GATE_HW }, { x: cx - px2 * GATE_HW, y: cy - py2 * GATE_HW });
-      }
-      if (gates.length) slalomZone = bbox(poles, 22);
+    jumpZone = bbox(jumps, 28);
+  }
+  /* gates alternating across a fall line traced from (ax, ay) — always downhill */
+  function makeSlalomCourse(ax, ay) {
+    gates = []; slalomZone = null; slalomCleared = false;
+    var cl = [{ x: ax, y: ay }], cx0 = ax, cy0 = ay;
+    for (var s = 0; s < SLALOM_GATES + 2; s++) {
+      var gg = grad(cx0, cy0), gmg = Math.hypot(gg[0], gg[1]);
+      if (gmg < 0.012) break;                                 // flat -> stop tracing (no bunched gates)
+      cx0 += (-gg[0] / gmg) * GATE_STEP_Y; cy0 += (-gg[1] / gmg) * GATE_STEP_Y;
+      cl.push({ x: cx0, y: cy0 });
     }
+    if (cl.length < 3) return;                                // not enough slope here for a course
+    var poles = [];
+    for (var k = 1; k < cl.length && gates.length < SLALOM_GATES; k++) {
+      var a = cl[k - 1], b = cl[k], ddx = b.x - a.x, ddy = b.y - a.y, dl = Math.hypot(ddx, ddy) || 1e-6;
+      ddx /= dl; ddy /= dl;
+      var px2 = -ddy, py2 = ddx, side = (k % 2 ? 1 : -1);
+      var cx = b.x + px2 * side * GATE_SHIFT, cy = b.y + py2 * side * GATE_SHIFT;
+      gates.push({ cx: cx, cy: cy, nx: ddx, ny: ddy, px: px2, py: py2, hw: GATE_HW, passed: false, prev: 0 });
+      poles.push({ x: cx + px2 * GATE_HW, y: cy + py2 * GATE_HW }, { x: cx - px2 * GATE_HW, y: cy - py2 * GATE_HW });
+    }
+    if (gates.length) slalomZone = bbox(poles, 22);
   }
 
   /* short, spaced, non-crossing lifts from a basin to a nearby peak — never inside a course */
@@ -353,7 +359,7 @@
       if (gm < 6e-5) break;
       var dx = -g[0] / gm, dy = -g[1] / gm, px = -dy, py = dx, w = Math.sin(s * 0.4) * 0.5;
       x += (dx + px * w) * 13; y += (dy + py * w) * 13;
-      if (x < 18 || x > W - 18 || y < 36 || y > H - 18) break;
+      if (x < -240 || x > W + 240 || y < -240 || y > H + 240) break;   // allow off-screen (it scrolls in)
       if (inCourse(x, y) || inLetters(x, y)) break;           // don't run through a course / the words
       pts.push({ x: x, y: y });
     }
@@ -388,29 +394,155 @@
     }
   }
 
+  /* ---- infinite map: a deadzone camera scrolls the world under the player ---- */
+  function cameraFollow() {
+    if (!window.__topo.renderAt) { clampWalls(); return; }      // fallback if topo can't scroll
+    var loX = W * 0.18, hiX = W * 0.82, loY = H * 0.22, hiY = H * 0.80, sdx = 0, sdy = 0;
+    if (chr.x < loX) { sdx = chr.x - loX; chr.x = loX; }
+    else if (chr.x > hiX) { sdx = chr.x - hiX; chr.x = hiX; }
+    if (chr.y < loY) { sdy = chr.y - loY; chr.y = loY; }
+    else if (chr.y > hiY) { sdy = chr.y - hiY; chr.y = hiY; }
+    if (sdx || sdy) {
+      cam.x += sdx; cam.y += sdy;
+      shiftWorld(-sdx, -sdy);
+      scrollDir.x = scrollDir.x * 0.86 + sdx * 0.14;
+      scrollDir.y = scrollDir.y * 0.86 + sdy * 0.14;
+      window.__topo.renderAt(base.x + cam.x, base.y + cam.y);
+      refreshShade();
+    } else { scrollDir.x *= 0.93; scrollDir.y *= 0.93; }
+    manageWorld();
+  }
+
+  /* move every placed object opposite the scroll, so they stay fixed to the terrain */
+  function shiftWorld(dx, dy) {
+    var i, j;
+    for (i = 0; i < trees.length; i++) { trees[i].x += dx; trees[i].y += dy; }
+    for (i = 0; i < peaks.length; i++) { peaks[i].x += dx; peaks[i].y += dy; }
+    for (i = 0; i < jumps.length; i++) { jumps[i].x += dx; jumps[i].y += dy; }
+    if (jumpZone) { jumpZone.x += dx; jumpZone.y += dy; }
+    for (i = 0; i < gates.length; i++) { var g = gates[i]; g.cx += dx; g.cy += dy; g.prev -= dx * g.nx + dy * g.ny; }
+    if (slalomZone) { slalomZone.x += dx; slalomZone.y += dy; }
+    for (i = 0; i < lifts.length; i++) { var L = lifts[i]; L.bx += dx; L.by += dy; L.tx += dx; L.ty += dy; }
+    for (i = 0; i < streams.length; i++) for (j = 0; j < streams[i].length; j++) { streams[i][j].x += dx; streams[i][j].y += dy; }
+    for (i = 0; i < trail.length; i++) { trail[i].x += dx; trail[i].y += dy; }
+    for (i = 0; i < spray.length; i++) { spray[i].x += dx; spray[i].y += dy; }
+    for (i = 0; i < confetti.length; i++) { confetti[i].x += dx; confetti[i].y += dy; }
+  }
+
+  function offPt(x, y, m) { return x < -m || x > W + m || y < -m || y > H + m; }
+  function offRect(z, m) { return !z || z.x + z.w < -m || z.x > W + m || z.y + z.h < -m || z.y > H + m; }
+  function streamOff(S) { for (var i = 0; i < S.length; i++) if (!offPt(S[i].x, S[i].y, 150)) return false; return true; }
+  function ringPoint(m) {                                       // a random point just off-screen
+    var x, y;
+    if (Math.random() < 0.5) { x = Math.random() * (W + 2 * m) - m; y = Math.random() < 0.5 ? -10 - Math.random() * m : H + 10 + Math.random() * m; }
+    else { y = Math.random() * (H + 2 * m) - m; x = Math.random() < 0.5 ? -10 - Math.random() * m : W + 10 + Math.random() * m; }
+    return { x: x, y: y };
+  }
+  function leadPoint(dist) {                                    // off-screen, in the direction of travel
+    var dx = scrollDir.x, dy = scrollDir.y, m = Math.hypot(dx, dy);
+    if (m < 0.5) { var a = Math.random() * 6.2832; dx = Math.cos(a); dy = Math.sin(a); } else { dx /= m; dy /= m; }
+    return { x: W / 2 + dx * dist + -dy * (Math.random() - 0.5) * W * 0.5, y: H / 2 + dy * dist + dx * (Math.random() - 0.5) * H * 0.5 };
+  }
+  function findStart(wantDown) {                                // a sloped (downhill) start near the lead point
+    var lp = leadPoint(Math.max(W, H) * 0.6), best = null;
+    for (var t = 0; t < 130; t++) {
+      var x = lp.x + (Math.random() * 2 - 1) * 280, y = lp.y + (Math.random() * 2 - 1) * 280;
+      var g = grad(x, y), gm = Math.hypot(g[0], g[1]);
+      if (gm < 0.03 || gm > 0.14) continue;
+      if (wantDown && -g[1] / gm < 0.12) continue;
+      var sc = gm + (wantDown ? -g[1] / gm * 0.4 : 0);
+      if (!best || sc > best.sc) best = { x: x, y: y, sc: sc };
+    }
+    return best;                                                // null -> caller waits for sloped ground
+  }
+  function spawnAhead() {                                       // a point off-screen in the direction of travel
+    var dx = scrollDir.x, dy = scrollDir.y, mag = Math.hypot(dx, dy);
+    if (mag < 0.6) return ringPoint(120);
+    dx /= mag; dy /= mag;
+    var D = Math.max(W, H), perpx = -dy, perpy = dx, ahead = D * 0.5 + Math.random() * D * 0.3, spread = (Math.random() - 0.5) * D;
+    return { x: W / 2 + dx * ahead + perpx * spread, y: H / 2 + dy * ahead + perpy * spread };
+  }
+  /* keep ~3 summit flags fixed to the terrain (they shift with the world); add a fresh
+     one only when the count drops, so they never jump around mid-scroll */
+  function managePeaks() {
+    for (var i = peaks.length - 1; i >= 0; i--) if (offPt(peaks[i].x, peaks[i].y, 50)) peaks.splice(i, 1);
+    if (peaks.length >= 3) return;
+    var step = 44, best = null;
+    for (var y = 60; y < H - 50; y += step) for (var x = 60; x < W - 50; x += step) {
+      var e = field(x, y), isMax = true;
+      for (var oy = -1; oy <= 1 && isMax; oy++) for (var ox = -1; ox <= 1; ox++) if ((ox || oy) && field(x + ox * step, y + oy * step) > e) { isMax = false; break; }
+      if (!isMax) continue;
+      var near = false;
+      for (var p = 0; p < peaks.length; p++) if (Math.hypot(x - peaks[p].x, y - peaks[p].y) < 150) { near = true; break; }
+      if (!near && (!best || e > best.e)) best = { x: x, y: y, e: e };
+    }
+    if (best) peaks.push(best);
+  }
+
+  /* cull what scrolled away and replenish ahead — keeps exactly one of each course */
+  function manageWorld() {
+    var M = 130, i;
+    for (i = trees.length - 1; i >= 0; i--) if (offPt(trees[i].x, trees[i].y, M)) trees.splice(i, 1);
+    var g1 = 0;
+    while (trees.length < TREE_POOL && g1++ < 50) { var rp = spawnAhead(); if (inCourse(rp.x, rp.y)) continue; trees.push({ x: rp.x, y: rp.y, size: 9 + Math.random() * 8, born: -1e9 }); }
+    managePeaks();
+    if (!jumps.length || offRect(jumpZone, 150)) { var ja = findStart(false); if (ja) makeJumpCourse(ja.x, ja.y); }
+    if (!gates.length || offRect(slalomZone, 150)) { var sa = findStart(true); if (sa) makeSlalomCourse(sa.x, sa.y); }
+    if (mode() === "ski") {
+      for (i = lifts.length - 1; i >= 0; i--) { var L = lifts[i]; if (offPt(L.bx, L.by, 150) && offPt(L.tx, L.ty, 150)) lifts.splice(i, 1); }
+      var g2 = 0; while (lifts.length < 2 && g2++ < 24) { if (!spawnOneLift()) break; }
+      if (streams.length) streams = [];
+    } else {
+      for (i = streams.length - 1; i >= 0; i--) if (streamOff(streams[i])) streams.splice(i, 1);
+      var g3 = 0; while (streams.length < 2 && g3++ < 18) { if (!spawnOneStream()) break; }
+      if (lifts.length) lifts = [];
+    }
+    lodge = lifts.length ? { x: lifts[0].bx, y: lifts[0].by } : null;
+    tent = null;
+    if (streams.length) { var S = streams[0], k = Math.min(S.length - 1, 4), a = S[k], b = S[Math.min(S.length - 1, k + 1)], dl = Math.hypot(b.x - a.x, b.y - a.y) || 1; tent = { x: a.x + -(b.y - a.y) / dl * 16, y: a.y + (b.x - a.x) / dl * 16 }; }
+  }
+  function spawnOneLift() {
+    var lp = leadPoint(Math.max(W, H) * 0.55), base2 = null, top2 = null, lo = 1e9, hiE = -1e9;
+    for (var t = 0; t < 50; t++) { var x = lp.x + (Math.random() * 2 - 1) * 220, y = lp.y + (Math.random() * 2 - 1) * 220, e = field(x, y); if (e < lo) { lo = e; base2 = { x: x, y: y }; } if (e > hiE) { hiE = e; top2 = { x: x, y: y }; } }
+    if (!base2 || !top2) return false;
+    var d = Math.hypot(top2.x - base2.x, top2.y - base2.y);
+    if (d < LIFT_MIN || d > LIFT_MAX || hiE - lo <= 0 || inCourse(base2.x, base2.y) || inCourse(top2.x, top2.y)) return false;
+    lifts.push({ bx: base2.x, by: base2.y, tx: top2.x, ty: top2.y, phase: Math.random() });
+    return true;
+  }
+  function spawnOneStream() {
+    var lp = leadPoint(Math.max(W, H) * 0.55), start = null, hiE = -1e9;
+    for (var t = 0; t < 36; t++) { var x = lp.x + (Math.random() * 2 - 1) * 200, y = lp.y + (Math.random() * 2 - 1) * 200, e = field(x, y); if (e > hiE) { hiE = e; start = { x: x, y: y }; } }
+    if (!start || inCourse(start.x, start.y)) return false;
+    var st = traceStream(start.x, start.y);
+    if (st) { streams.push(st); return true; }
+    return false;
+  }
+
   function buildSnow() {
     snow = [];
     for (var i = 0; i < N_SNOW; i++) snow.push({ x: Math.random() * W, y: Math.random() * H, r: 0.6 + Math.random() * 1.5, vy: 0.25 + Math.random() * 0.6, sw: Math.random() * 6.28 });
   }
 
-  /* relief shading: precompute once (terrain is frozen) and blit each frame */
-  function buildShade() {
-    var sc = 8, sw = Math.max(1, Math.ceil(W / sc)), sh = Math.max(1, Math.ceil(H / sc));
-    var off = document.createElement("canvas"); off.width = sw; off.height = sh;
-    var octx = off.getContext("2d"); var img = octx.createImageData(sw, sh);
-    var vals = new Float32Array(sw * sh), mn = 1e9, mx = -1e9, k = 0;
-    for (var j = 0; j < sh; j++) for (var i = 0; i < sw; i++) {
-      var e = field(i * sc, j * sc); vals[k++] = e; if (e < mn) mn = e; if (e > mx) mx = e;
+  /* relief shading: recomputed from the current (scrolling) terrain into a reused buffer */
+  function refreshShade() {
+    var sw = Math.max(1, Math.ceil(W / shadeSc)), sh = Math.max(1, Math.ceil(H / shadeSc));
+    if (!shadeCanvas || shadeW !== sw || shadeH !== sh) {
+      shadeCanvas = document.createElement("canvas"); shadeCanvas.width = sw; shadeCanvas.height = sh;
+      shadeCtx = shadeCanvas.getContext("2d"); shadeImg = shadeCtx.createImageData(sw, sh);
+      shadeVals = new Float32Array(sw * sh); shadeW = sw; shadeH = sh;
     }
+    var sc = shadeSc, data = shadeImg.data, vals = shadeVals, mn = 1e9, mx = -1e9, k = 0;
+    for (var j = 0; j < sh; j++) for (var i = 0; i < sw; i++) { var e = field(i * sc, j * sc); vals[k++] = e; if (e < mn) mn = e; if (e > mx) mx = e; }
     var rng = (mx - mn) || 1, ski = mode() === "ski", fg = hexRgb(C.fg);
     for (var p = 0, q = 0; q < vals.length; q++, p += 4) {
       var e2 = (vals[q] - mn) / rng, a, r, gg, b;
       if (ski) { a = (1 - e2) * (1 - e2) * 0.22; r = 24; gg = 14; b = 6; }
       else { a = e2 * e2 * 0.14; r = fg[0]; gg = fg[1]; b = fg[2]; }
-      img.data[p] = r; img.data[p + 1] = gg; img.data[p + 2] = b; img.data[p + 3] = Math.round(a * 255);
+      data[p] = r; data[p + 1] = gg; data[p + 2] = b; data[p + 3] = Math.round(a * 255);
     }
-    octx.putImageData(img, 0, 0);
-    shade = off;
+    shadeCtx.putImageData(shadeImg, 0, 0);
+    shade = shadeCanvas;
   }
 
   function clampWalls() {
@@ -471,7 +603,7 @@
     chr.speed = sp;
 
     var px = chr.x, py = chr.y;
-    chr.x += chr.vx; chr.y += chr.vy; clampWalls();
+    chr.x += chr.vx; chr.y += chr.vy;
 
     var moved = Math.hypot(chr.x - px, chr.y - py);
     if (sp > 0.4) {
@@ -499,7 +631,7 @@
     chr.vx += (wgx - chr.vx) * 0.15; chr.vy += (wgy - chr.vy) * 0.15;
     chr.vx *= 0.9; chr.vy *= 0.9;
     chr.tumble += chr.spin; chr.spin *= 0.92;
-    chr.x += chr.vx; chr.y += chr.vy; clampWalls();
+    chr.x += chr.vx; chr.y += chr.vy;
     chr.speed = Math.hypot(chr.vx, chr.vy); chr.sliding = false;
     if (chr.wipe <= 0) { chr.spin = 0; chr.tumble = 0; }
   }
@@ -537,7 +669,7 @@
     chr.air--;
     var p = 1 - chr.air / chr.airMax;
     chr.airH = Math.sin(p * Math.PI);
-    chr.x += chr.avx; chr.y += chr.avy; chr.avx *= 0.995; chr.avy *= 0.995; clampWalls();
+    chr.x += chr.avx; chr.y += chr.avy; chr.avx *= 0.995; chr.avy *= 0.995;
     chr.tumble += chr.trickSpin; chr.trickSpin *= 0.95;
     chr.flip += chr.flipV; chr.flipV *= 0.97;
     chr.speed = Math.hypot(chr.avx, chr.avy);
@@ -1006,6 +1138,7 @@
     if (!active) return;
     var now = performance.now();
     step();
+    cameraFollow();
     updateSpray();
     updateSnow();
     updateConfetti();
