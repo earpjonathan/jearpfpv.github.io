@@ -16,6 +16,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://projects.jonathanearp.xyz/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://resume.jonathanearp.xyz/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>

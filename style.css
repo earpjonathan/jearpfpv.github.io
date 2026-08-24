@@ -721,3 +721,30 @@ body.game-on .cover-foot__hint { opacity: 0; }
   .cover { justify-content: flex-start; }
   .menu__txt { font-size: clamp(40px, 16vw, 64px); }
 }
+
+/* .cover centres the menu in the whole viewport while .cover-foot is fixed
+   over the bottom of it, and body.is-cover clips overflow with no way to
+   scroll. Three items cleared the dock on their own; a fourth does not, so on
+   a short viewport cap the type by height as well as width and reserve room
+   at the bottom for the dock. */
+@media (max-height: 720px) {
+  .menu__txt { font-size: clamp(32px, min(8vw, 10.5vh), 88px); }
+  .menu { gap: clamp(2px, 1vh, 12px); }
+  .cover { padding-bottom: 120px; }
+}
+@media (max-height: 520px) {
+  .menu__txt { font-size: clamp(22px, min(8vw, 9.5vh), 44px); }
+  .menu { gap: clamp(2px, 0.6vh, 8px); }
+  .cover { padding-bottom: 100px; }
+  .cover-foot { gap: 8px; }
+  .cover-foot__hint { display: none; }
+}
+/* Narrow screens size the menu off 16vw, not 8vw. Repeat the height caps
+   against that number or a portrait phone under 560px - which has room for
+   four items - would get the landscape type instead. */
+@media (max-height: 720px) and (max-width: 560px) {
+  .menu__txt { font-size: clamp(32px, min(16vw, 10.5vh), 64px); }
+}
+@media (max-height: 520px) and (max-width: 560px) {
+  .menu__txt { font-size: clamp(22px, min(16vw, 9.5vh), 44px); }
+}
