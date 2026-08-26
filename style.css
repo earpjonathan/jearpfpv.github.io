@@ -12,7 +12,7 @@
   --bg: #100904;          /* studio black — warm near-black canvas */
   --fg: #ffedd7;          /* warm cream — sole foreground */
   --cream: #ffedd7;       /* constant: text on the dark-cork swatch */
-  --fg-soft: #6c5f51;     /* grey-brown — muted helper text only */
+  --fg-soft: #9b8b78;      /* warm grey-brown — muted text, 5.98:1 on --bg */
   --line: #40372e;        /* cork-shadow — dashed dividers / secondary lines */
   --cork: #382416;        /* dark-cork — the one filled surface (buttons) */
   --accent: #dc5000;      /* burnt-sienna — hairline accent ONLY, never a fill */
@@ -44,7 +44,7 @@ html[data-theme="light"] {
   --fg-soft: #6f6152;
   --line: #c7b69a;
   --cork: #382416;        /* keep the dark warm swatch for filled buttons */
-  --accent: #c2470a;      /* slightly deepened sienna for contrast on light */
+  --accent: #a63a06;      /* deepened sienna — 5.03:1 on the light ground */
 }
 
 /* ---------- RESET ---------- */
@@ -634,9 +634,48 @@ body.game-on, body.game-on * { cursor: none !important; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--header-h) var(--gut);
+  /* the dock is fixed over the bottom of this same viewport, so the centred
+     block has to reserve room for it or the last menu item lands underneath */
+  padding: var(--header-h) var(--gut) 150px;
   pointer-events: none;
 }
+.cover__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(20px, 4vh, 44px);
+}
+
+/* the thesis line — name and context, above the menu */
+.ident {
+  pointer-events: auto;   /* selectable; topo/game listen on window, not here */
+  max-width: 52ch;
+}
+.ident__name {
+  font-size: clamp(20px, 2.6vw, 30px);
+  line-height: 1.05;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.ident__line {
+  margin-top: 10px;
+  font-size: clamp(13px, 1.15vw, 16px);
+  line-height: 1.45;
+  color: var(--fg);
+  max-width: 46ch;
+  text-wrap: pretty;
+}
+.ident__line b { color: var(--accent); font-weight: 500; }
+/* locality on its own row, in the small-caps meta idiom the other sites use
+   for eyebrows and meta strips, so the sentence above stays one readable unit */
+.ident__where {
+  margin-top: 10px;
+  font-size: var(--t-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-soft);
+}
+
 .menu {
   display: flex;
   flex-direction: column;
@@ -656,7 +695,10 @@ body.game-on, body.game-on * { cursor: none !important; }
   transition: color var(--t-fast);
 }
 .menu__txt {
-  font-size: clamp(40px, 8vw, 88px);
+  /* capped against height as well as width: the identity block sits above
+     this and the dock is fixed below it, so a wide-but-short window has to
+     give ground somewhere, and the menu is what can afford to */
+  font-size: clamp(40px, min(8vw, 10.5vh), 88px);
   line-height: 1.02;
   font-weight: 500;
   text-transform: uppercase;
@@ -728,14 +770,27 @@ body.game-on .cover-foot__hint { opacity: 0; }
    a short viewport cap the type by height as well as width and reserve room
    at the bottom for the dock. */
 @media (max-height: 720px) {
-  .menu__txt { font-size: clamp(32px, min(8vw, 10.5vh), 88px); }
   .menu { gap: clamp(2px, 1vh, 12px); }
-  .cover { padding-bottom: 120px; }
+  .cover { padding-bottom: 145px; }
+  .cover__inner { gap: clamp(14px, 2.6vh, 28px); }
+  /* the identity block does not shrink much, so the menu gives up the room */
+  .menu__txt { font-size: clamp(32px, min(8vw, 9.5vh), 88px); }
+  .ident__line { font-size: 13px; margin-top: 8px; }
+}
+/* landscape phones: keep the name, drop the context line rather than let the
+   menu shrink any further. The header is transparent at the top of the page,
+   so the top reserve can come down with it. */
+@media (max-height: 560px) {
+  .ident__line { display: none; }
+  .ident__name { font-size: 18px; }
+  .cover { padding-top: 44px; }
 }
 @media (max-height: 520px) {
   .menu__txt { font-size: clamp(22px, min(8vw, 9.5vh), 44px); }
   .menu { gap: clamp(2px, 0.6vh, 8px); }
-  .cover { padding-bottom: 100px; }
+  .cover { padding-bottom: 105px; }
+  /* nothing but the name fits beside four menu items at this height */
+  .ident__where { display: none; }
   .cover-foot { gap: 8px; }
   .cover-foot__hint { display: none; }
 }

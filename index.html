@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jonathan Earp — Engineer, FPV Pilot & Researcher</title>
-    <meta name="description" content="Jonathan Earp — student engineer and FAA Part 107 FPV drone pilot in the Bay Area. FPV cinematography, robotics, and AI air-quality research (StoveCam) at Lawrence Berkeley National Lab.">
+    <meta name="description" content="Jonathan Earp — Electrical and Mechanical Engineering student at the University of Edinburgh and FAA Part 107 FPV drone pilot, based between the San Francisco Bay Area and Edinburgh. FPV cinematography, robotics, and AI air-quality research (StoveCam) at Lawrence Berkeley National Lab.">
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <link rel="canonical" href="https://jonathanearp.xyz/">
@@ -16,7 +16,7 @@
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Jonathan Earp">
     <meta property="og:title" content="Jonathan Earp — Engineer, FPV Pilot & Researcher">
-    <meta property="og:description" content="FPV drone cinematography, robotics, and AI air-quality research (StoveCam) at Lawrence Berkeley National Lab.">
+    <meta property="og:description" content="Electrical and Mechanical Engineering student at the University of Edinburgh. FPV drone cinematography, robotics, and AI air-quality research (StoveCam) at Lawrence Berkeley National Lab.">
     <meta property="og:url" content="https://jonathanearp.xyz/">
     <meta property="og:image" content="https://jonathanearp.xyz/assets/og.jpg">
     <meta property="og:image:width" content="1200">
@@ -26,7 +26,7 @@
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Jonathan Earp — Engineer, FPV Pilot & Researcher">
-    <meta name="twitter:description" content="FPV drone cinematography, robotics, and AI air-quality research at LBNL.">
+    <meta name="twitter:description" content="Engineering student at Edinburgh. FPV drone cinematography, robotics, and AI air-quality research at LBNL.">
     <meta name="twitter:image" content="https://jonathanearp.xyz/assets/og.jpg">
     <meta name="twitter:creator" content="@JonathanEarp_">
 
@@ -48,13 +48,14 @@
           "name": "Jonathan Earp",
           "url": "https://jonathanearp.xyz/",
           "image": "https://jonathanearp.xyz/assets/og.jpg",
-          "jobTitle": "Engineer, FPV pilot & researcher",
-          "description": "Student engineer and FAA Part 107 FPV drone pilot in the San Francisco Bay Area; AI air-quality research (StoveCam) at Lawrence Berkeley National Laboratory and nanofabrication at UPenn's Singh Center.",
+          "jobTitle": "Electrical and Mechanical Engineering student, FPV pilot & researcher",
+          "description": "Electrical and Mechanical Engineering student at the University of Edinburgh and FAA Part 107 FPV drone pilot, based between the San Francisco Bay Area and Edinburgh; AI air-quality research (StoveCam) at Lawrence Berkeley National Laboratory and nanofabrication at UPenn's Singh Center.",
           "affiliation": [
+            { "@type": "CollegeOrUniversity", "name": "University of Edinburgh" },
             { "@type": "Organization", "name": "Lawrence Berkeley National Laboratory" },
             { "@type": "Organization", "name": "University of Pennsylvania — Singh Center for Nanotechnology" }
           ],
-          "knowsAbout": ["FPV drone cinematography", "Robotics", "Indoor air quality", "AI vision-language models", "Mechanical engineering", "Drone building"],
+          "knowsAbout": ["FPV drone cinematography", "Robotics", "Indoor air quality", "AI vision-language models", "Mechanical engineering", "Electrical engineering", "Drone building"],
           "sameAs": [
             "https://www.instagram.com/jonathanearp.1/",
             "https://www.linkedin.com/in/jonathan-earp-25905026b/",
@@ -76,9 +77,34 @@
       (function () {
         var d = document.documentElement;
         d.classList.add("js");
-        try {
-          d.dataset.theme = localStorage.getItem("theme") || "dark";
-        } catch (e) { d.dataset.theme = "dark"; }
+
+        /* The five sites are separate origins, so localStorage cannot carry the
+           theme between them - toggling on the hub and clicking through used to
+           land you back in dark. A cookie on the parent domain does carry, so it
+           is read first; localStorage stays as the fallback for local dev, where
+           a .jonathanearp.xyz cookie is dropped. With neither set, follow the OS
+           instead of forcing dark on someone whose machine is in light mode. */
+        var t = "";
+        var m = document.cookie.match(/(?:^|;\s*)theme=(dark|light)/);
+        if (m) t = m[1];
+        if (!t) { try { t = localStorage.getItem("theme") || ""; } catch (e) {} }
+        if (!t && window.matchMedia &&
+            matchMedia("(prefers-color-scheme: light)").matches) t = "light";
+        d.dataset.theme = t === "light" ? "light" : "dark";
+
+        /* Written by the toggle in every site's script - one place that knows
+           about the cookie, so the five copies of the toggle stay trivial. */
+        window.__setTheme = function (next) {
+          d.dataset.theme = next;
+          try { localStorage.setItem("theme", next); } catch (e) {}
+          try {
+            var dom = /(^|\.)jonathanearp\.xyz$/i.test(location.hostname)
+              ? ";domain=.jonathanearp.xyz" : "";
+            document.cookie = "theme=" + next +
+              ";path=/;max-age=31536000;samesite=lax" + dom +
+              (location.protocol === "https:" ? ";secure" : "");
+          } catch (e) {}
+        };
       })();
     </script>
 
@@ -109,11 +135,32 @@
     </header>
 
     <main class="cover">
-        <h1 class="sr-only">Jonathan Earp — engineer, FPV drone pilot, and researcher</h1>
-        <p class="sr-only">Jonathan Earp is a student engineer and FAA Part 107 FPV drone pilot based in the San Francisco Bay Area. He builds FPV drone cinematography and robotics, and works on AI air-quality research — including StoveCam at Lawrence Berkeley National Laboratory and nanofabrication at the University of Pennsylvania's Singh Center. Explore his FPV reel, research, projects, and résumé.</p>
+      <div class="cover__inner">
+
+        <!-- The identity used to be sr-only, so the visible page opened on four
+             outlined words and nothing else. Anyone arriving cold needs the name
+             and one line of context before the menu means anything. -->
+        <header class="ident">
+            <h1 class="ident__name">Jonathan Earp</h1>
+            <p class="ident__line">
+                Electrical and Mechanical Engineering student at the University of
+                Edinburgh, FAA&nbsp;Part&nbsp;107 FPV pilot, and AI air-quality
+                researcher at <b>Lawrence Berkeley National Lab</b>.
+            </p>
+            <p class="ident__where">San Francisco Bay Area · Edinburgh</p>
+        </header>
+
+        <p class="sr-only">Jonathan Earp is an Electrical and Mechanical Engineering student at the University of Edinburgh and an FAA Part 107 FPV drone pilot, based between the San Francisco Bay Area and Edinburgh. He builds FPV drone cinematography and robotics, and works on AI air-quality research — including StoveCam at Lawrence Berkeley National Laboratory and nanofabrication at the University of Pennsylvania's Singh Center. Explore his FPV reel, research, projects, and résumé.</p>
+
+        <!-- The FPV peek points at the FPV site's own preview encode, absolute
+             and on that origin, for two reasons: the hub used to ship its own
+             91 MB copy of the full reel for a hover thumbnail, and pulling the
+             same URL the FPV hero uses means the browser fetches it once and
+             the reel is already warm when the visitor lands there. -->
         <nav class="menu" aria-label="Sections">
             <a class="menu__item" href="https://fpv.jonathanearp.xyz"
-               data-peek="video" data-peek-src="assets/reel.mp4">
+               data-peek="video"
+               data-peek-src="https://fpv.jonathanearp.xyz/assets/videos/reel-preview.mp4">
                 <span class="menu__no">01</span>
                 <span class="menu__txt">FPV</span>
             </a>
@@ -131,6 +178,8 @@
                 <span class="menu__txt">Résumé</span>
             </a>
         </nav>
+
+      </div>
     </main>
 
     <footer class="cover-foot">

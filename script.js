@@ -10,8 +10,10 @@
   btn.addEventListener("click", function () {
     var d = document.documentElement;
     var next = d.dataset.theme === "dark" ? "light" : "dark";
-    d.dataset.theme = next;
-    try { localStorage.setItem("theme", next); } catch (e) {}
+    /* __setTheme is defined by the boot script in <head>; it writes the
+       cookie that carries the choice across the sibling subdomains. */
+    if (window.__setTheme) window.__setTheme(next);
+    else d.dataset.theme = next;
   });
 })();
 
@@ -79,6 +81,10 @@
       var src = item.getAttribute("data-peek-src");
       media.innerHTML = "";
       if (type === "video") {
+        /* The peek is decoration. On save-data or a slow link, skip it
+           rather than spend the visitor's bytes on a hover effect. */
+        var c = navigator.connection;
+        if (c && (c.saveData || /(^|-)(2g|slow-2g)$/.test(c.effectiveType || ""))) return;
         var v = document.createElement("video");
         v.src = src; v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true;
         v.play().catch(function () {});
