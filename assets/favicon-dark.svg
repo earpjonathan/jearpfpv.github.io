@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs><clipPath id="tile"><rect width="512" height="512" rx="76"/></clipPath></defs>
-  <style>.bg{fill:#ece1cf}.ln{stroke:#241a0f;stroke-width:30}.ln--a{stroke:#c2470a;stroke-width:30}@media(prefers-color-scheme:dark){.bg{fill:#100904}.ln{stroke:#ffedd7;stroke-width:30}.ln--a{stroke:#dc5000;stroke-width:30}}</style>
+  <style>.bg{fill:#100904}.ln{stroke:#ffedd7;stroke-width:30}.ln--a{stroke:#dc5000;stroke-width:30}</style>
   <rect class="bg" width="512" height="512" rx="76"/>
   <g clip-path="url(#tile)" fill="none" stroke-linecap="round">
     <g transform="rotate(-36 344 176)">
